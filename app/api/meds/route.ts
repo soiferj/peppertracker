@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
       updateData.had_evening_meds = true
     }
 
-    // Upsert the record (insert or update)
+    // Upsert the record (insert or update) - now works with unique constraint
     const { data, error } = await supabase
       .from('meds')
       .upsert(updateData, { onConflict: 'date' })
