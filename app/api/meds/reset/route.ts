@@ -18,43 +18,6 @@ function getTodayInPacific(): string {
   return format(pacificTime, 'yyyy-MM-dd')
 }
 
-export async function GET() {
-  const session = await getServerSession()
-  
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const today = getTodayInPacific()
-  
-  try {
-    // Get today's medication record
-    const { data, error } = await supabase
-      .from('meds')
-      .select('*')
-      .eq('date', today)
-      .single()
-
-    if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
-      throw error
-    }
-
-    // If no record exists for today, return default values
-    if (!data) {
-      return NextResponse.json({
-        date: today,
-        had_morning_meds: false,
-        had_evening_meds: false
-      })
-    }
-
-    return NextResponse.json(data)
-  } catch (error) {
-    console.error('Error fetching meds:', error)
-    return NextResponse.json({ error: 'Failed to fetch medication data' }, { status: 500 })
-  }
-}
-
 export async function POST(request: NextRequest) {
   const session = await getServerSession()
   
@@ -77,23 +40,22 @@ export async function POST(request: NextRequest) {
       .eq('date', today)
       .single()
 
-    const updateData = {
-      date: today,
-      had_morning_meds: existingRecord?.had_morning_meds || false,
-      had_evening_meds: existingRecord?.had_evening_meds || false,
+    if (!existingRecord) {
+      return NextResponse.json({ error: 'No medication record found for today' }, { status: 404 })
     }
 
-    // Update the appropriate field
+    // Update the appropriate field to false (reset)
+    const updateData: any = {}
     if (medType === 'morning') {
-      updateData.had_morning_meds = true
+      updateData.had_morning_meds = false
     } else {
-      updateData.had_evening_meds = true
+      updateData.had_evening_meds = false
     }
 
-    // Upsert the record (insert or update) - now works with unique constraint
     const { data, error } = await supabase
       .from('meds')
-      .upsert(updateData, { onConflict: 'date' })
+      .update(updateData)
+      .eq('date', today)
       .select()
       .single()
 
@@ -103,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(data)
   } catch (error) {
-    console.error('Error updating meds:', error)
-    return NextResponse.json({ error: 'Failed to update medication data' }, { status: 500 })
+    console.error('Error resetting meds:', error)
+    return NextResponse.json({ error: 'Failed to reset medication data' }, { status: 500 })
   }
 }

@@ -2,8 +2,9 @@
 
 import { useSession, signIn, signOut } from 'next-auth/react'
 import { useState, useEffect } from 'react'
-import { HeartIcon, ClockIcon, CheckCircleIcon } from '@heroicons/react/24/solid'
+import { HeartIcon, ClockIcon, CheckCircleIcon, ArrowUturnLeftIcon, ExclamationTriangleIcon } from '@heroicons/react/24/solid'
 import { format } from 'date-fns'
+import { utcToZonedTime } from 'date-fns-tz'
 
 interface MedRecord {
   date: string
@@ -16,6 +17,8 @@ export default function Home() {
   const [medRecord, setMedRecord] = useState<MedRecord | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showResetDialog, setShowResetDialog] = useState(false)
+  const [resetType, setResetType] = useState<'morning' | 'evening' | null>(null)
 
   useEffect(() => {
     if (session) {
@@ -60,6 +63,40 @@ export default function Home() {
     }
   }
 
+  const handleResetMedication = (medType: 'morning' | 'evening') => {
+    setResetType(medType)
+    setShowResetDialog(true)
+  }
+
+  const resetMedication = async () => {
+    if (!resetType) return
+    
+    setLoading(true)
+    setError('')
+    
+    try {
+      const response = await fetch('/api/meds/reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ medType: resetType }),
+      })
+
+      if (!response.ok) throw new Error('Failed to reset medication')
+      
+      const data = await response.json()
+      setMedRecord(data)
+      setShowResetDialog(false)
+      setResetType(null)
+    } catch (err) {
+      setError('Failed to reset medication')
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   if (status === 'loading') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center">
@@ -96,7 +133,7 @@ export default function Home() {
     )
   }
 
-  const today = format(new Date(), 'EEEE, MMMM do, yyyy')
+  const today = format(utcToZonedTime(new Date(), 'America/Los_Angeles'), 'EEEE, MMMM do, yyyy')
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 paw-pattern">
@@ -154,7 +191,7 @@ export default function Home() {
               <button
                 onClick={() => giveMedication('morning')}
                 disabled={loading || medRecord?.had_morning_meds}
-                className={`w-full py-3 px-6 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 ${
+                className={`w-full py-3 px-6 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 mb-3 ${
                   medRecord?.had_morning_meds
                     ? 'bg-green-100 text-green-800 cursor-not-allowed'
                     : 'bg-gradient-to-r from-yellow-400 to-orange-500 text-white hover:from-yellow-500 hover:to-orange-600 shadow-lg'
@@ -162,6 +199,18 @@ export default function Home() {
               >
                 {loading ? 'Updating...' : medRecord?.had_morning_meds ? 'Already Given' : 'Give Morning Meds'}
               </button>
+              
+              {/* Reset button for morning meds */}
+              {medRecord?.had_morning_meds && (
+                <button
+                  onClick={() => handleResetMedication('morning')}
+                  disabled={loading}
+                  className={`w-full py-2 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center space-x-2 bg-gray-100 text-gray-700 hover:bg-gray-200 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <ArrowUturnLeftIcon className="h-4 w-4" />
+                  <span>Undo Morning Meds</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -190,7 +239,7 @@ export default function Home() {
               <button
                 onClick={() => giveMedication('evening')}
                 disabled={loading || medRecord?.had_evening_meds}
-                className={`w-full py-3 px-6 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 ${
+                className={`w-full py-3 px-6 rounded-lg font-semibold transition-all duration-200 transform hover:scale-105 mb-3 ${
                   medRecord?.had_evening_meds
                     ? 'bg-green-100 text-green-800 cursor-not-allowed'
                     : 'bg-gradient-to-r from-purple-500 to-blue-600 text-white hover:from-purple-600 hover:to-blue-700 shadow-lg'
@@ -198,6 +247,18 @@ export default function Home() {
               >
                 {loading ? 'Updating...' : medRecord?.had_evening_meds ? 'Already Given' : 'Give Evening Meds'}
               </button>
+              
+              {/* Reset button for evening meds */}
+              {medRecord?.had_evening_meds && (
+                <button
+                  onClick={() => handleResetMedication('evening')}
+                  disabled={loading}
+                  className={`w-full py-2 px-4 rounded-lg font-medium transition-all duration-200 flex items-center justify-center space-x-2 bg-gray-100 text-gray-700 hover:bg-gray-200 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <ArrowUturnLeftIcon className="h-4 w-4" />
+                  <span>Undo Evening Meds</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -231,6 +292,44 @@ export default function Home() {
             </div>
           </div>
         </div>
+
+        {/* Confirmation Dialog */}
+        {showResetDialog && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <ExclamationTriangleIcon className="h-8 w-8 text-red-600" />
+                </div>
+                
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Undo Medication?</h3>
+                <p className="text-gray-600 mb-6">
+                  Are you sure you want to undo the {resetType} medication? This will mark it as not given.
+                </p>
+                
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => {
+                      setShowResetDialog(false)
+                      setResetType(null)
+                    }}
+                    disabled={loading}
+                    className="flex-1 py-2 px-4 rounded-lg font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={resetMedication}
+                    disabled={loading}
+                    className={`flex-1 py-2 px-4 rounded-lg font-medium bg-red-500 text-white hover:bg-red-600 transition-colors ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {loading ? 'Undoing...' : 'Yes, Undo'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
