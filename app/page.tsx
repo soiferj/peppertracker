@@ -16,6 +16,7 @@ export default function Home() {
   const { data: session, status } = useSession()
   const [medRecord, setMedRecord] = useState<MedRecord | null>(null)
   const [loading, setLoading] = useState(false)
+  const [dataLoading, setDataLoading] = useState(false)
   const [error, setError] = useState('')
   const [showResetDialog, setShowResetDialog] = useState(false)
   const [resetType, setResetType] = useState<'morning' | 'evening' | null>(null)
@@ -27,6 +28,7 @@ export default function Home() {
   }, [session])
 
   const fetchMedRecord = async () => {
+    setDataLoading(true)
     try {
       const response = await fetch('/api/meds')
       if (!response.ok) throw new Error('Failed to fetch medication data')
@@ -35,6 +37,8 @@ export default function Home() {
     } catch (err) {
       setError('Failed to load medication data')
       console.error(err)
+    } finally {
+      setDataLoading(false)
     }
   }
 
@@ -127,6 +131,43 @@ export default function Home() {
             >
               Sign in with Google
             </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Show loading while fetching medication data
+  if (dataLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 paw-pattern">
+        <div className="container mx-auto px-4 py-8">
+          {/* Header */}
+          <div className="bg-white rounded-2xl shadow-xl p-6 mb-8">
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">PepperTracker 🐕</h1>
+                <p className="text-gray-600">{format(utcToZonedTime(new Date(), 'America/Los_Angeles'), 'EEEE, MMMM do, yyyy')}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-sm text-gray-600 mb-2">Welcome, {session.user?.name}</p>
+                <button
+                  onClick={() => signOut()}
+                  className="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                >
+                  Sign out
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Loading State */}
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Loading Medication Status</h3>
+              <p className="text-gray-600">Fetching today's medication data...</p>
+            </div>
           </div>
         </div>
       </div>
